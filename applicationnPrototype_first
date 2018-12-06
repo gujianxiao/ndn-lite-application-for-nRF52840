@@ -1,0 +1,205 @@
+#include <nrf_gpio.h>
+#include <nrfx_gpiote.h>
+#include <nrfx_uarte.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <strings.h>
+
+#include <adaptation/ndn-nrf52840.h>
+#include <face/direct-face.h>
+
+static const uint32_t led = NRF_GPIO_PIN_MAP(0,13);
+
+static const nrfx_gpiote_out_config_t led_config = {
+  .init_state = GPIOTE_CONFIG_OUTINIT_Low,
+  .task_pin = false
+};
+
+/*
+const nrfx_uarte_t uart0 = NRFX_UARTE_INSTANCE(0);
+
+static const nrfx_uarte_config_t uart_config = {
+  .pseltxd = NRF_GPIO_PIN_MAP(1,10),
+  .pselrxd = NRF_GPIO_PIN_MAP(1,11),
+  .pselcts = NRF_UARTE_PSEL_DISCONNECTED,
+  .pselrts = NRF_UARTE_PSEL_DISCONNECTED,
+  .hwfc = NRFX_UART_DEFAULT_CONFIG_HWFC,
+  .parity = NRFX_UART_DEFAULT_CONFIG_PARITY,
+  .baudrate = NRFX_UART_DEFAULT_CONFIG_BAUDRATE,
+  .interrupt_priority = NRFX_UART_DEFAULT_CONFIG_IRQ_PRIORITY
+};
+
+*/
+static uint8_t schematrust_flag=1;
+
+/* functions */
+
+/**@brief Handle tasks in the main function.
+ *
+ * @details   Handle tasks in the main function.
+ */
+static void sys_task_run(void);
+
+
+
+static void nop(void)
+{
+  __asm__ __volatile__("nop":::);
+}
+
+static void blink_led(int i) {
+  const uint32_t pin = NRF_GPIO_PIN_MAP(0,12 + i); // LED
+  nrf_gpio_cfg_output(pin);
+
+  int counter = 0;
+  while (counter < 10) {
+    nrf_gpio_pin_toggle(pin);
+    for(uint32_t i = 0; i < 0x320000; ++i)
+      nop();
+    counter++;
+  }
+}
+
+int
+on_data_callback(const uint8_t* data, uint32_t data_size)
+{
+  (void)data;#include <stdio.h>
+#include <string.h>
+  (void)data_size;
+  return 0;
+}
+
+int
+on_interest_timeout_callback(const uint8_t* interest, uint32_t interest_size)
+{
+  (void)interest;
+  (void)interest_size;
+  blink_led(interest_size);
+  return 0;
+}
+//deal with different interests
+int
+on_interest(const uint8_t* interest, uint32_t interest_size)
+{
+        blink_led(3);
+	char bootstrap_string[] = "/NDN-IoT/Board_1/Bootstrap";
+	char CMD_string[] = "/NDN-IoT/Board_1/SD_LED/ON";
+	char schema_string[] = "/NDN-IoT/Board_1/schema_trust/on";
+	//initiate signature of controller here
+	ndn_signature_t controller_signature{
+	   	.sig_type=;
+      		.sig_value[NDN_SIGNATURE_BUFFER_SIZE]=;
+  		.sig_size=;
+		.enable_KeyLocator=;
+  		.enable_ValidityPeriod=;
+  		.key_locator_name=;
+  		.validity_period=;
+	}	
+
+	//dealing with bootstrap here
+	if(strycmp(interest->name,bootstrap_string)){
+		blink_led(4);
+		//bootstrap operation here
+	}
+	//dealing with command here
+	if(strycmp(interest.name,CMD_string)){
+		//verify which one send the interest
+		if(interest->signature.sig_value==controller_signature.sig_values){
+			blink_led(5);
+			//other operation here
+		}
+		else if (schematrust_flag==1){
+			blink_led(5);
+			//other operation here		
+		}
+		else {
+			printf ("unvalid command from other node");
+			//other operation here
+		}
+	}
+	//dealling with schema trust here
+	if(strycmp(interest->name,schema_string)){
+		if(interest)
+		schematrust_flag==0;
+	}
+  return 0;
+}
+
+void
+on_error_callback(int error_code)
+{
+  blink_led(error_code);
+}
+
+int
+main(void)
+{
+  // initialization
+  if (NRFX_SUCCESS != nrfx_gpiote_init())
+    while(1) { /* endless */ };
+  nrfx_gpiote_out_init(led, &led_config);
+  if (NRFX_SUCCESS != nrfx_uarte_init(&uart0, &uart_config, NULL))
+    while(1) { /* endless */ };
+
+  ndn_forwarder_t* forwarder;
+  ndn_nrf52840_802154_face_t* nrf_face;
+  ndn_direct_face_t* direct_face;
+  //initiate the address for mac layer
+  const uint8_t extended_address[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef};
+  const uint8_t pan_id[]           = {0xd0, 0x0f};
+  const uint8_t short_address[]    = {0x12, 0x34};
+
+  char bootstrap_string[] = "/NDN-IoT/Board_1/Bootstrap";
+  ndn_name_t boostrap_prefix;
+  ndn_name_from_string(&bootstrap_prefix, bootstrap_string, sizeof(bootstrap_string));
+
+//regeist the prefix to listen the interest from mobile phone for bootstrap
+
+ndn_direct_face_regiester_prefix(&bootstrap_prefix, on_interest);
+
+//regeist the prefix to listen for the command
+  char neighborCMD_string[] = "/NDN-IoT/Board_1/SD_LED/ON";
+  ndn_name_t neighborCMD_prefix;
+  ndn_name_from_string(&neighborCMD_prefix, neighborCMD_string, sizeof(neighborCMD_prefix));
+//regeist the prefix to listen for the command of schema trust
+  char schema_string[] = "/NDN-IoT/Board_1/schema_trust/on";
+  ndn_name_t schema_prefix;
+  ndn_name_from_string(&schema_prefix, schema_string, sizeof(schema_string));
+
+
+
+/*
+// send command interest to other node here
+// initiate forwarder and address of mac layer
+  forwarder = ndn_forwarder_init();
+  direct_face = ndn_direct_face_construct(124);
+  nrf_face = ndn_nrf52840_802154_face_construct(123, extended_address,
+                                                pan_id, short_address, false, on_error_callback);
+//construct interest
+ ndn_interest_t interest;
+  ndn_interest_init(&interest);
+  char name_string[] = "/NDN-IoT/Board_2/SD_LED/ON";
+  ndn_name_from_string(&interest.name, name_string, sizeof(name_string));
+  uint8_t interest_block[256] = {0};
+  ndn_encoder_t encoder;
+  encoder_init(&encoder, interest_block, 256);
+  ndn_interest_tlv_encode(&encoder, &interest);
+
+  ndn_forwarder_fib_insert(&prefix, &nrf_face->intf, 1);
+
+//send command interest
+  ndn_direct_face_express_interest(&interest.name,
+                                   interest_block, encoder.offset,
+                                   on_data_callback, on_interest_timeout_callback);
+  ndn_face_send(&nrf_face->intf, &interest.name, interest_block, encoder.offset);
+*/
+
+
+//main loop here
+    while (true)
+    {
+        sys_task_run();
+    }
+
+  return 0;
+}
