@@ -4,9 +4,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <strings.h>
-
-#include <adaptation/ndn-nrf52840.h>
+#include <adaptation/ndn-nrf-802154-driver.h>
+//#include <adaptation/ndn-nrf52840.h>
 #include <face/direct-face.h>
+#include <forwarder/forwarder.h>
+#include <encode/name.h>
+#include <face/ndn-nrf-802154-face.h>
+#include <face/direct-face.h>
+#include <nrf_delay.h>   //For basic delaying functions
+#include <pca10056.h>    //GPIO definitions for the nRF52840-DK (aka pca10056)
 
 static const uint32_t led = NRF_GPIO_PIN_MAP(0,13);
 
@@ -15,7 +21,7 @@ static const nrfx_gpiote_out_config_t led_config = {
   .task_pin = false
 };
 
-/*
+
 const nrfx_uarte_t uart0 = NRFX_UARTE_INSTANCE(0);
 
 static const nrfx_uarte_config_t uart_config = {
@@ -29,8 +35,10 @@ static const nrfx_uarte_config_t uart_config = {
   .interrupt_priority = NRFX_UART_DEFAULT_CONFIG_IRQ_PRIORITY
 };
 
-*/
+
 static uint8_t schematrust_flag=1;
+static uint8_t controller_signature_enable_KeyLocator=99;
+
 
 /* functions */
 
@@ -38,8 +46,18 @@ static uint8_t schematrust_flag=1;
  *
  * @details   Handle tasks in the main function.
  */
-static void sys_task_run(void);
-
+/*
+static void sys_task_run(void){
+ if (nrf_gpio_pin_read(BUTTON_1)==0&&(schematrust_flag=1)){ // If button 1 is pressed (Active Low)
+            nrf_gpio_pin_write(BSP_LED_0,0); // Turn on LED 
+            nrf_delay_ms(100); // for debouncing 
+          }
+            if (nrf_gpio_pin_read(BUTTON_2)==0){ // If button 2 is pressed (Active Low)
+            nrf_gpio_pin_write(BSP_LED_0,1); // Turn off LED 
+            nrf_delay_ms(100); // for debouncing  
+          }
+};
+*/
 
 
 static void nop(void)
@@ -63,8 +81,7 @@ static void blink_led(int i) {
 int
 on_data_callback(const uint8_t* data, uint32_t data_size)
 {
-  (void)data;#include <stdio.h>
-#include <string.h>
+  (void)data;
   (void)data_size;
   return 0;
 }
@@ -82,29 +99,37 @@ int
 on_interest(const uint8_t* interest, uint32_t interest_size)
 {
         blink_led(3);
-	char bootstrap_string[] = "/NDN-IoT/Board_1/Bootstrap";
-	char CMD_string[] = "/NDN-IoT/Board_1/SD_LED/ON";
+	//initiate the name prefix of different interest here
+	//bootstrap
+  	char bootstrap_string[] = "/NDN-IoT/Board_1/Bootstrap";
+  	ndn_name_t bootstrap_prefix;
+  	ndn_name_from_string(&bootstrap_prefix, bootstrap_string, sizeof(bootstrap_string));
+	//command
+  	char CMD_string[] = "/NDN-IoT/Board_1/SD_LED/ON";
+  	ndn_name_t CMD_prefix;
+  	ndn_name_from_string(&CMD_prefix, CMD_string, sizeof(CMD_string));
+	//schema_trust
 	char schema_string[] = "/NDN-IoT/Board_1/schema_trust/on";
+  	ndn_name_t schema_prefix;
+  	ndn_name_from_string(&schema_prefix, schema_string, sizeof(schema_string));
+//
+	ndn_interest_t check_interest;
+	int result = ndn_interest_from_block(&check_interest, interest, interest_size);
 	//initiate signature of controller here
-	ndn_signature_t controller_signature{
-	   	.sig_type=;
-      		.sig_value[NDN_SIGNATURE_BUFFER_SIZE]=;
-  		.sig_size=;
-		.enable_KeyLocator=;
-  		.enable_ValidityPeriod=;
-  		.key_locator_name=;
-  		.validity_period=;
-	}	
 
 	//dealing with bootstrap here
-	if(strycmp(interest->name,bootstrap_string)){
+	if(ndn_name_compare(&check_interest.name,&bootstrap_prefix)){
 		blink_led(4);
 		//bootstrap operation here
 	}
 	//dealing with command here
-	if(strycmp(interest.name,CMD_string)){
+	if(ndn_name_compare(&check_interest.name,&CMD_prefix)){
+		//for temper test
+		schematrust_flag=0;
 		//verify which one send the interest
-		if(interest->signature.sig_value==controller_signature.sig_values){
+/*
+		if(check_interest.signature.enable_KeyLocator==controller_signature_enable_KeyLocator)	
+		{
 			blink_led(5);
 			//other operation here
 		}
@@ -116,11 +141,11 @@ on_interest(const uint8_t* interest, uint32_t interest_size)
 			printf ("unvalid command from other node");
 			//other operation here
 		}
+*/
 	}
 	//dealling with schema trust here
-	if(strycmp(interest->name,schema_string)){
-		if(interest)
-		schematrust_flag==0;
+	if(ndn_name_compare(&check_interest.name,&schema_prefix)){
+		schematrust_flag=0;
 	}
   return 0;
 }
@@ -140,9 +165,14 @@ main(void)
   nrfx_gpiote_out_init(led, &led_config);
   if (NRFX_SUCCESS != nrfx_uarte_init(&uart0, &uart_config, NULL))
     while(1) { /* endless */ };
+//initialize the button and LED
+    nrf_gpio_cfg_output(BSP_LED_0); //BSP_LED_0 is pin 13 in the nRF52840-DK. Configure pin 13 as standard output. 
+    nrf_gpio_cfg_input(BUTTON_1,NRF_GPIO_PIN_PULLUP);// Configure pin 11 as standard input with a pull up resister. 
+    nrf_gpio_cfg_input(BUTTON_2,NRF_GPIO_PIN_PULLUP);// Configure pin 12 as standard input with a pull up resister. 
+    nrf_gpio_pin_write(BSP_LED_0,1); // Turn off LED1 (Active Low)
 
   ndn_forwarder_t* forwarder;
-  ndn_nrf52840_802154_face_t* nrf_face;
+  ndn_nrf_802154_face_t* nrf_face;
   ndn_direct_face_t* direct_face;
   //initiate the address for mac layer
   const uint8_t extended_address[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef};
@@ -150,31 +180,37 @@ main(void)
   const uint8_t short_address[]    = {0x12, 0x34};
 
   char bootstrap_string[] = "/NDN-IoT/Board_1/Bootstrap";
-  ndn_name_t boostrap_prefix;
+  ndn_name_t bootstrap_prefix;
   ndn_name_from_string(&bootstrap_prefix, bootstrap_string, sizeof(bootstrap_string));
 
 //regeist the prefix to listen the interest from mobile phone for bootstrap
 
-ndn_direct_face_regiester_prefix(&bootstrap_prefix, on_interest);
+ndn_direct_face_register_prefix(&bootstrap_prefix, on_interest);
 
 //regeist the prefix to listen for the command
   char neighborCMD_string[] = "/NDN-IoT/Board_1/SD_LED/ON";
   ndn_name_t neighborCMD_prefix;
-  ndn_name_from_string(&neighborCMD_prefix, neighborCMD_string, sizeof(neighborCMD_prefix));
+  ndn_name_from_string(&neighborCMD_prefix, neighborCMD_string, sizeof(neighborCMD_string));
+
+	ndn_direct_face_register_prefix(&neighborCMD_prefix, on_interest);
 //regeist the prefix to listen for the command of schema trust
   char schema_string[] = "/NDN-IoT/Board_1/schema_trust/on";
   ndn_name_t schema_prefix;
   ndn_name_from_string(&schema_prefix, schema_string, sizeof(schema_string));
+  ndn_direct_face_register_prefix(&schema_prefix, on_interest);
 
 
 
-/*
+
+
+
 // send command interest to other node here
 // initiate forwarder and address of mac layer
   forwarder = ndn_forwarder_init();
   direct_face = ndn_direct_face_construct(124);
   nrf_face = ndn_nrf52840_802154_face_construct(123, extended_address,
-                                                pan_id, short_address, false, on_error_callback);
+                                               pan_id, short_address, false, on_error_callback);
+/* 
 //construct interest
  ndn_interest_t interest;
   ndn_interest_init(&interest);
@@ -198,7 +234,15 @@ ndn_direct_face_regiester_prefix(&bootstrap_prefix, on_interest);
 //main loop here
     while (true)
     {
-        sys_task_run();
+       // sys_task_run();
+ if (nrf_gpio_pin_read(BUTTON_1)==0&&(schematrust_flag=1)){ // If button 1 is pressed (Active Low)
+            nrf_gpio_pin_write(BSP_LED_0,0); // Turn on LED 
+            nrf_delay_ms(100); // for debouncing 
+          }
+            if (nrf_gpio_pin_read(BUTTON_2)==0){ // If button 2 is pressed (Active Low)
+            nrf_gpio_pin_write(BSP_LED_0,1); // Turn off LED 
+            nrf_delay_ms(100); // for debouncing  
+          }
     }
 
   return 0;
