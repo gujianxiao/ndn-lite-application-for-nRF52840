@@ -154,6 +154,7 @@ void
 on_error_callback(int error_code)
 {
   blink_led(error_code);
+  schematrust_flag=0;
 }
 
 int
@@ -208,7 +209,7 @@ ndn_direct_face_register_prefix(&bootstrap_prefix, on_interest);
 // initiate forwarder and address of mac layer
   forwarder = ndn_forwarder_init();
   direct_face = ndn_direct_face_construct(124);
-  nrf_face = ndn_nrf52840_802154_face_construct(123, extended_address,
+  nrf_face = ndn_nrf_802154_face_construct(123, extended_address,
                                                pan_id, short_address, false, on_error_callback);
 /* 
 //construct interest
@@ -235,7 +236,7 @@ ndn_direct_face_register_prefix(&bootstrap_prefix, on_interest);
     while (true)
     {
        // sys_task_run();
- if (nrf_gpio_pin_read(BUTTON_1)==0&&(schematrust_flag=1)){ // If button 1 is pressed (Active Low)
+ if (nrf_gpio_pin_read(BUTTON_1)==0&&(schematrust_flag==1)){ // If button 1 is pressed (Active Low)
             nrf_gpio_pin_write(BSP_LED_0,0); // Turn on LED 
             nrf_delay_ms(100); // for debouncing 
           }
