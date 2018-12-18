@@ -94,6 +94,42 @@ on_interest_timeout_callback(const uint8_t* interest, uint32_t interest_size)
   blink_led(interest_size);
   return 0;
 }
+
+
+//deal with command
+int 
+on_CMD_interest(const uint8_t* interest, uint32_t interest_size)
+{
+	schematrust_flag=0;
+        blink_led(3);
+        char CMD_string[] = "/NDN-IoT/Board_1/SD_LED/ON";
+  	ndn_name_t CMD_prefix;
+  	ndn_name_from_string(&CMD_prefix, CMD_string, sizeof(CMD_string));
+	ndn_interest_t check_interest;
+	int result = ndn_interest_from_block(&check_interest, interest, interest_size);
+if(ndn_name_compare(&check_interest.name,&CMD_prefix)){
+		//for temper test
+		schematrust_flag=0;
+		//verify which one send the interest
+/*
+		if(check_interest.signature.enable_KeyLocator==controller_signature_enable_KeyLocator)	
+		{
+			blink_led(5);
+			//other operation here
+		}
+		else if (schematrust_flag==1){
+			blink_led(5);
+			//other operation here		
+		}
+		else {
+			printf ("unvalid command from other node");
+			//other operation here
+		}
+*/
+	}
+  return 0;
+}
+
 //deal with different interests
 int
 on_interest(const uint8_t* interest, uint32_t interest_size)
@@ -154,7 +190,6 @@ void
 on_error_callback(int error_code)
 {
   blink_led(error_code);
-  schematrust_flag=0;
 }
 
 int
@@ -193,7 +228,7 @@ ndn_direct_face_register_prefix(&bootstrap_prefix, on_interest);
   ndn_name_t neighborCMD_prefix;
   ndn_name_from_string(&neighborCMD_prefix, neighborCMD_string, sizeof(neighborCMD_string));
 
-	ndn_direct_face_register_prefix(&neighborCMD_prefix, on_interest);
+	ndn_direct_face_register_prefix(&neighborCMD_prefix, on_CMD_interest);
 //regeist the prefix to listen for the command of schema trust
   char schema_string[] = "/NDN-IoT/Board_1/schema_trust/on";
   ndn_name_t schema_prefix;
